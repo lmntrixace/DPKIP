@@ -285,12 +285,10 @@ def main(_):
                      dp_params['sigma'], FLAGS.batch_size, y_support,
                      grad_fun), opt_state_)
 
-  """Initialize distilled images as random original ones"""
   _, labels_init, init_params, y_init = class_balanced_sample(FLAGS.support_size, labels_train,
                                                               train_images, y_train,
                                                               seed=FLAGS.seed)
   if FLAGS.rand_init:
-      """Initialize distilled images as N(0,1)"""
     if FLAGS.dataset == 'mnist':
       init_params = random.normal(key, (FLAGS.support_size, train_images.shape[1]))
       init_params = shape_as_image_only_imgs(init_params, y_init, FLAGS.dataset)
@@ -344,55 +342,55 @@ def main(_):
     
   cur_path = os.path.dirname(os.path.abspath(__file__))
   if FLAGS.feature_type == 'wavelet':
-    save_acc_path=os.path.join(cur_path, 'accuracy_scatter')
-    save_images_path=os.path.join(cur_path, 'images_scatter')
+    save_acc_path = os.path.join(cur_path, 'accuracy_scatter')
+    save_images_path = os.path.join(cur_path, 'images_scatter')
     if FLAGS.dpsgd:
-      save_acc_path=os.path.join(cur_path, 'accuracy_scatter_dp')
-      save_images_path=os.path.join(cur_path, 'images_scatter_dp')
+        save_acc_path = os.path.join(cur_path, 'accuracy_scatter_dp')
+        save_images_path = os.path.join(cur_path, 'images_scatter_dp')
   else:
-    save_acc_path=os.path.join(cur_path, 'accuracy_perceptual')
-    save_images_path=os.path.join(cur_path, 'images_perceptual')
-    if FLAGS.dpsgd:
-      save_acc_path=os.path.join(cur_path, 'accuracy_perceptual_dp')
-      save_images_path=os.path.join(cur_path, 'images_perceptual_dp')
+      save_acc_path = os.path.join(cur_path, 'accuracy_perceptual')
+      save_images_path = os.path.join(cur_path, 'images_perceptual')
+      if FLAGS.dpsgd:
+          save_acc_path = os.path.join(cur_path, 'accuracy_perceptual_dp')
+          save_images_path = os.path.join(cur_path, 'images_perceptual_dp')
 
   if FLAGS.dpsgd:
-    if FLAGS.feature_type == 'wavelet':
-	    filename_acc="acc_{}_{}_supp_size={}_eps={}_delta={}_lr={}_c={}_bs={}_epochs={}_reg={}_seed={}_rand_init={}_scatter_j={}_norm_feat={}_rand_init={}.txt".format(FLAGS.feature_type, 
-                    FLAGS.dataset,FLAGS.support_size, FLAGS.epsilon, FLAGS.delta, FLAGS.learning_rate, FLAGS.l2_norm_clip, FLAGS.batch_size, FLAGS.epochs, 
-                    FLAGS.kip_loss_reg, FLAGS.seed, FLAGS.rand_init, FLAGS.scatter_j, FLAGS.normalize_features, FLAGS.rand_init)
-    else:
-	    filename_acc="acc_{}_{}_supp_size={}_eps={}_delta={}_lr={}_c={}_bs={}_epochs={}_reg={}_seed={}_pretrained_enc={}_norm_feat={}_rand_init={}.txt".format(FLAGS.feature_type, 
-                    FLAGS.dataset,FLAGS.support_size, FLAGS.epsilon, FLAGS.delta, FLAGS.learning_rate, FLAGS.l2_norm_clip, FLAGS.batch_size, FLAGS.epochs, 
-                    FLAGS.kip_loss_reg, FLAGS.seed, FLAGS.pretrained_encoder, FLAGS.normalize_features, FLAGS.rand_init)
+      if FLAGS.feature_type == 'wavelet':
+          filename_acc = "acc_{}_{}_supp_size={}_eps={}_delta={}_lr={}_c={}_bs={}_epochs={}_reg={}_seed={}_rand_init={}_scatter_j={}_norm_feat={}.txt".format(
+              FLAGS.feature_type, FLAGS.dataset, FLAGS.support_size, FLAGS.epsilon, FLAGS.delta, FLAGS.learning_rate, FLAGS.l2_norm_clip, 
+              FLAGS.batch_size, FLAGS.epochs, FLAGS.kip_loss_reg, FLAGS.seed, FLAGS.rand_init, FLAGS.scatter_j, FLAGS.normalize_features)
+      else:
+          filename_acc = "acc_{}_{}_supp_size={}_eps={}_delta={}_lr={}_c={}_bs={}_epochs={}_reg={}_seed={}_pretrained_enc={}_norm_feat={}_rand_init={}.txt".format(
+              FLAGS.feature_type, FLAGS.dataset, FLAGS.support_size, FLAGS.epsilon, FLAGS.delta, FLAGS.learning_rate, FLAGS.l2_norm_clip, 
+              FLAGS.batch_size, FLAGS.epochs, FLAGS.kip_loss_reg, FLAGS.seed, FLAGS.pretrained_encoder, FLAGS.normalize_features, FLAGS.rand_init)
   else:
-    if FLAGS.feature_type == 'wavelet':
-      filename_acc="acc_{}_{}_supp_size={}_lr={}_bs={}_epochs={}_reg={}_seed={}_rand_init={}_scatter_j={}_norm_feat={}.txt".format(FLAGS.feature_type, 
-                    FLAGS.dataset,FLAGS.support_size, FLAGS.learning_rate, FLAGS.batch_size, FLAGS.epochs, FLAGS.kip_loss_reg, FLAGS.seed, FLAGS.rand_init, 
-                    FLAGS.scatter_j, FLAGS.normalize_features)
-    else:
-      filename_acc="acc_{}_{}_supp_size={}_lr={}_bs={}_epochs={}_reg={}_seed={}_pretrained_enc={}_norm_feat={}.txt".format(FLAGS.feature_type, 
-                    FLAGS.dataset,FLAGS.support_size, FLAGS.learning_rate, FLAGS.batch_size, FLAGS.epochs, FLAGS.kip_loss_reg, FLAGS.seed, 
-                    FLAGS.pretrained_encoder, FLAGS.normalize_features)
+      if FLAGS.feature_type == 'wavelet':
+          filename_acc = "acc_{}_{}_supp_size={}_lr={}_bs={}_epochs={}_reg={}_seed={}_rand_init={}_scatter_j={}_norm_feat={}.txt".format(
+              FLAGS.feature_type, FLAGS.dataset, FLAGS.support_size, FLAGS.learning_rate, FLAGS.batch_size, FLAGS.epochs, FLAGS.kip_loss_reg, 
+              FLAGS.seed, FLAGS.rand_init, FLAGS.scatter_j, FLAGS.normalize_features)
+      else:
+          filename_acc = "acc_{}_{}_supp_size={}_lr={}_bs={}_epochs={}_reg={}_seed={}_pretrained_enc={}_norm_feat={}.txt".format(
+              FLAGS.feature_type, FLAGS.dataset, FLAGS.support_size, FLAGS.learning_rate, FLAGS.batch_size, FLAGS.epochs, FLAGS.kip_loss_reg, 
+              FLAGS.seed, FLAGS.pretrained_encoder, FLAGS.normalize_features)
 
   if FLAGS.dpsgd:
-    if FLAGS.feature_type == 'wavelet':
-	    filename_images="images_{}_{}_supp_size={}_eps={}_delta={}_lr={}_c={}_bs={}_epochs={}_reg={}_seed={}_rand_init={}_scatter_j={}_norm_feat={}_rand_init={}.npz".format(FLAGS.feature_type, 
-                    FLAGS.dataset,FLAGS.support_size, FLAGS.epsilon, FLAGS.delta, FLAGS.learning_rate, FLAGS.l2_norm_clip, FLAGS.batch_size, FLAGS.epochs, 
-                    FLAGS.kip_loss_reg, FLAGS.seed, FLAGS.rand_init, FLAGS.scatter_j, FLAGS.normalize_features, FLAGS.rand_init)
-    else:
-	    filename_images="images_{}_{}_supp_size={}_eps={}_delta={}_lr={}_c={}_bs={}_epochs={}_reg={}_seed={}_pretrained_enc={}_norm_feat={}_rand_init={}.npz".format(FLAGS.feature_type, 
-                    FLAGS.dataset,FLAGS.support_size, FLAGS.epsilon, FLAGS.delta, FLAGS.learning_rate, FLAGS.l2_norm_clip, FLAGS.batch_size, FLAGS.epochs, 
-                    FLAGS.kip_loss_reg, FLAGS.seed, FLAGS.pretrained_encoder, FLAGS.normalize_features, FLAGS.rand_init)
+      if FLAGS.feature_type == 'wavelet':
+          filename_images = "images_{}_{}_supp_size={}_eps={}_delta={}_lr={}_c={}_bs={}_epochs={}_reg={}_seed={}_rand_init={}_scatter_j={}_norm_feat={}.npz".format(
+              FLAGS.feature_type, FLAGS.dataset, FLAGS.support_size, FLAGS.epsilon, FLAGS.delta, FLAGS.learning_rate, FLAGS.l2_norm_clip, 
+              FLAGS.batch_size, FLAGS.epochs, FLAGS.kip_loss_reg, FLAGS.seed, FLAGS.rand_init, FLAGS.scatter_j, FLAGS.normalize_features)
+      else:
+          filename_images = "images_{}_{}_supp_size={}_eps={}_delta={}_lr={}_c={}_bs={}_epochs={}_reg={}_seed={}_pretrained_enc={}_norm_feat={}_rand_init={}.npz".format(
+              FLAGS.feature_type, FLAGS.dataset, FLAGS.support_size, FLAGS.epsilon, FLAGS.delta, FLAGS.learning_rate, FLAGS.l2_norm_clip, 
+              FLAGS.batch_size, FLAGS.epochs, FLAGS.kip_loss_reg, FLAGS.seed, FLAGS.pretrained_encoder, FLAGS.normalize_features, FLAGS.rand_init)
   else:
-    if FLAGS.feature_type == 'wavelet':
-      filename_images="images_{}_{}_supp_size={}_lr={}_bs={}_epochs={}_reg={}_seed={}_rand_init={}_scatter_j={}_norm_feat={}.npz".format(FLAGS.feature_type, 
-                    FLAGS.dataset,FLAGS.support_size, FLAGS.learning_rate, FLAGS.batch_size, FLAGS.epochs, FLAGS.kip_loss_reg, FLAGS.seed, FLAGS.rand_init, 
-                    FLAGS.scatter_j, FLAGS.normalize_features)
-    else:
-      filename_images="images_{}_{}_supp_size={}_lr={}_bs={}_epochs={}_reg={}_seed={}_pretrained_enc={}_norm_feat={}.npz".format(FLAGS.feature_type, 
-                    FLAGS.dataset,FLAGS.support_size, FLAGS.learning_rate, FLAGS.batch_size, FLAGS.epochs, FLAGS.kip_loss_reg, FLAGS.seed, 
-                    FLAGS.pretrained_encoder, FLAGS.normalize_features)
+      if FLAGS.feature_type == 'wavelet':
+          filename_images = "images_{}_{}_supp_size={}_lr={}_bs={}_epochs={}_reg={}_seed={}_rand_init={}_scatter_j={}_norm_feat={}.npz".format(
+              FLAGS.feature_type, FLAGS.dataset, FLAGS.support_size, FLAGS.learning_rate, FLAGS.batch_size, FLAGS.epochs, FLAGS.kip_loss_reg, 
+              FLAGS.seed, FLAGS.rand_init, FLAGS.scatter_j, FLAGS.normalize_features)
+      else:
+          filename_images = "images_{}_{}_supp_size={}_lr={}_bs={}_epochs={}_reg={}_seed={}_pretrained_enc={}_norm_feat={}.npz".format(
+              FLAGS.feature_type, FLAGS.dataset, FLAGS.support_size, FLAGS.learning_rate, FLAGS.batch_size, FLAGS.epochs, FLAGS.kip_loss_reg, 
+              FLAGS.seed, FLAGS.pretrained_encoder, FLAGS.normalize_features)
 
 
   if not os.path.exists(save_acc_path):
