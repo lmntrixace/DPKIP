@@ -4,6 +4,7 @@ import os
 import gc
 from absl import app
 from absl import flags
+from PIL import Image
 
 import jax
 from jax import grad
@@ -60,9 +61,6 @@ flags.DEFINE_boolean('pretrained_encoder', True, 'If False, encoder uses random 
 #flags for normalizing the features
 flags.DEFINE_boolean('normalize_features', False, '')
 
-import os
-from PIL import Image
-import numpy as np
 
 def load_chest_xray_dataset(data_dir):
     classes = ['NORMAL', 'PNEUMONIA']
@@ -249,42 +247,44 @@ def get_grad_fun(num_classes):
   return grad_fun
 
 def main(_):
-  train_dir = 'chest_xray/train'
-  test_dir = 'chest_xray/test'
-  val_dir = 'chest_xray/val'
-  
-  train_images, train_labels = load_chest_xray_dataset(train_dir)
-  test_images, test_labels = load_chest_xray_dataset(test_dir)
-  val_images, val_labels = load_chest_xray_dataset(val_dir)
-  
-  # Combine train and val sets
-  train_images = np.concatenate([train_images, val_images])
-  train_labels = np.concatenate([train_labels, val_labels])
-  
-  # Convert to float and normalize
-  train_images = train_images.astype(np.float32) / 255.0
-  test_images = test_images.astype(np.float32) / 255.0
-  
-  num_classes = 2  # NORMAL and PNEUMONIA
-  y_train = one_hot(train_labels, num_classes)
-  y_test = one_hot(test_labels, num_classes)
-
-  if FLAGS.dataset == 'cifar100':
-    num_classes=100
+  if FLAGS.dataset == 'chest_xray':
+        # Load the chest X-ray dataset
+      train_dir = os.path.join('chest_xray', 'train')
+      test_dir = os.path.join('chest_xray', 'test')
+      val_dir = os.path.join('chest_xray', 'val')
+      
+      train_images, train_labels = load_chest_xray_dataset(train_dir)
+      test_images, test_labels = load_chest_xray_dataset(test_dir)
+      val_images, val_labels = load_chest_xray_dataset(val_dir)
+      
+      # Combine train and val sets
+      train_images = np.concatenate([train_images, val_images])
+      train_labels = np.concatenate([train_labels, val_labels])
+      
+      # Convert to float and normalize
+      train_images = train_images.astype(np.float32) / 255.0
+      test_images = test_images.astype(np.float32) / 255.0
+      
+      num_classes = 2  # NORMAL and PNEUMONIA
+      y_train = one_hot(train_labels, num_classes)
+      test_labels = one_hot(test_labels, num_classes)
   else:
-    num_classes=10
+    if FLAGS.dataset == 'cifar100':
+      num_classes=100
+    else:
+      num_classes=10
 
-  grad_fun = get_grad_fun(num_classes)
+    grad_fun = get_grad_fun(num_classes)
 
-  if FLAGS.dataset == 'mnist':
-    train_images, train_labels, test_images, test_labels = datasets.mnist()
-    labels_train = jnp.argmax(train_labels, axis=1)
-    y_train=one_hot(labels_train, num_classes)
-  else:
-    X_TRAIN_RAW, labels_train, X_TEST_RAW, LABELS_TEST = get_tfds_dataset(FLAGS.dataset)
-    channel_means, channel_stds = get_normalization_data(X_TRAIN_RAW)
-    train_images, test_images = normalize(X_TRAIN_RAW, channel_means, channel_stds), normalize(X_TEST_RAW, channel_means, channel_stds)
-    y_train, test_labels = one_hot(labels_train, num_classes), one_hot(LABELS_TEST, num_classes) 
+    if FLAGS.dataset == 'mnist':
+      train_images, train_labels, test_images, test_labels = datasets.mnist()
+      labels_train = jnp.argmax(train_labels, axis=1)
+      y_train=one_hot(labels_train, num_classes)
+    else:
+      X_TRAIN_RAW, labels_train, X_TEST_RAW, LABELS_TEST = get_tfds_dataset(FLAGS.dataset)
+      channel_means, channel_stds = get_normalization_data(X_TRAIN_RAW)
+      train_images, test_images = normalize(X_TRAIN_RAW, channel_means, channel_stds), normalize(X_TEST_RAW, channel_means, channel_stds)
+      y_train, test_labels = one_hot(labels_train, num_classes), one_hot(LABELS_TEST, num_classes) 
 
   print("train_images.shape=", train_images.shape)
 
