@@ -248,26 +248,28 @@ def get_grad_fun(num_classes):
 
 def main(_):
   if FLAGS.dataset == 'chest_xray':
-        # Load the chest X-ray dataset
-      train_dir = os.path.join('chest_xray', 'train')
-      test_dir = os.path.join('chest_xray', 'test')
-      val_dir = os.path.join('chest_xray', 'val')
-      
-      train_images, train_labels = load_chest_xray_dataset(train_dir)
-      test_images, test_labels = load_chest_xray_dataset(test_dir)
-      val_images, val_labels = load_chest_xray_dataset(val_dir)
-      
-      # Combine train and val sets
-      train_images = np.concatenate([train_images, val_images])
-      train_labels = np.concatenate([train_labels, val_labels])
-      
-      # Convert to float and normalize
-      train_images = train_images.astype(np.float32) / 255.0
-      test_images = test_images.astype(np.float32) / 255.0
-      
-      num_classes = 2  # NORMAL and PNEUMONIA
-      y_train = one_hot(train_labels, num_classes)
-      test_labels = one_hot(test_labels, num_classes)
+    # Load the chest X-ray dataset
+    train_dir = os.path.join('chest_xray', 'train')
+    test_dir = os.path.join('chest_xray', 'test')
+    val_dir = os.path.join('chest_xray', 'val')
+    
+    train_images, train_labels = load_chest_xray_dataset(train_dir)
+    test_images, test_labels = load_chest_xray_dataset(test_dir)
+    val_images, val_labels = load_chest_xray_dataset(val_dir)
+    
+    # Combine train and val sets
+    train_images = np.concatenate([train_images, val_images])
+    train_labels = np.concatenate([train_labels, val_labels])
+    
+    # Convert to float and normalize
+    train_images = train_images.astype(np.float32) / 255.0
+    test_images = test_images.astype(np.float32) / 255.0
+    
+    num_classes = 2  # NORMAL and PNEUMONIA
+    y_train = one_hot(train_labels, num_classes)
+    test_labels = one_hot(test_labels, num_classes)
+
+    labels_train = train_labels
   else:
     if FLAGS.dataset == 'cifar100':
       num_classes=100
