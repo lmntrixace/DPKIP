@@ -249,25 +249,25 @@ def get_grad_fun(num_classes):
   return grad_fun
 
 def main(_):
-   train_dir = 'chest_xray/train'
-   test_dir = 'chest_xray/test'
-   val_dir = 'chest_xray/val'
-    
-   train_images, train_labels = load_chest_xray_dataset(train_dir)
-   test_images, test_labels = load_chest_xray_dataset(test_dir)
-   val_images, val_labels = load_chest_xray_dataset(val_dir)
-    
-    # Combine train and val sets
-   train_images = np.concatenate([train_images, val_images])
-   train_labels = np.concatenate([train_labels, val_labels])
-    
-    # Convert to float and normalize
-   train_images = train_images.astype(np.float32) / 255.0
-   test_images = test_images.astype(np.float32) / 255.0
-    
-   num_classes = 2  # NORMAL and PNEUMONIA
-   y_train = one_hot(train_labels, num_classes)
-   y_test = one_hot(test_labels, num_classes)
+  train_dir = 'chest_xray/train'
+  test_dir = 'chest_xray/test'
+  val_dir = 'chest_xray/val'
+  
+  train_images, train_labels = load_chest_xray_dataset(train_dir)
+  test_images, test_labels = load_chest_xray_dataset(test_dir)
+  val_images, val_labels = load_chest_xray_dataset(val_dir)
+  
+  # Combine train and val sets
+  train_images = np.concatenate([train_images, val_images])
+  train_labels = np.concatenate([train_labels, val_labels])
+  
+  # Convert to float and normalize
+  train_images = train_images.astype(np.float32) / 255.0
+  test_images = test_images.astype(np.float32) / 255.0
+  
+  num_classes = 2  # NORMAL and PNEUMONIA
+  y_train = one_hot(train_labels, num_classes)
+  y_test = one_hot(test_labels, num_classes)
 
   if FLAGS.dataset == 'cifar100':
     num_classes=100
