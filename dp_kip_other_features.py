@@ -60,6 +60,24 @@ flags.DEFINE_boolean('pretrained_encoder', True, 'If False, encoder uses random 
 #flags for normalizing the features
 flags.DEFINE_boolean('normalize_features', False, '')
 
+import os
+from PIL import Image
+import numpy as np
+
+def load_chest_xray_dataset(data_dir):
+    classes = ['NORMAL', 'PNEUMONIA']
+    X, y = [], []
+    
+    for class_idx, class_name in enumerate(classes):
+        class_dir = os.path.join(data_dir, class_name)
+        for img_name in os.listdir(class_dir):
+            img_path = os.path.join(class_dir, img_name)
+            img = Image.open(img_path).convert('L')  # Convert to grayscale
+            img = img.resize((224, 224))  # Resize to a standard size
+            X.append(np.array(img))
+            y.append(class_idx)
+    
+    return np.array(X), np.array(y)
 
 def kip_loss(phi_support, y_support, phi_target, y_target, num_classes, reg=1e-6):
   k_ts = jnp.matmul(phi_target, jnp.transpose(phi_support)) / num_classes
@@ -180,6 +198,9 @@ def private_grad(params, batch, rng, l2_norm_clip, noise_multiplier,
   return tree_unflatten(grads_treedef, normalized_noised_aggregated_clipped_grads)
 
 def shape_as_image(images, labels, dataset, dummy_dim=False):
+  if dataset == 'chest_xray':
+    target_shape = (-1, 1, 224, 224, 1) if dummy_dim else (-1, 224, 224, 1)
+    images_reshaped = jnp.reshape(images, target_shape)
   if dataset=='mnist' or dataset=='fashion_mnist':
     target_shape = (-1, 1, 28, 28, 1) if dummy_dim else (-1, 28, 28, 1)
     images_reshaped = jnp.reshape(images, target_shape)
@@ -189,6 +210,9 @@ def shape_as_image(images, labels, dataset, dummy_dim=False):
   return images_reshaped, labels
 
 def shape_as_image_only_imgs(images, labels, dataset, dummy_dim=False):
+  if dataset == 'chest_xray':
+    target_shape = (-1, 1, 224, 224, 1) if dummy_dim else (-1, 224, 224, 1)
+    images_reshaped = jnp.reshape(images, target_shape)
   if dataset=='mnist' or dataset=='fashion_mnist':
     target_shape = (-1, 1, 28, 28, 1) if dummy_dim else (-1, 28, 28, 1)
     images_reshaped = jnp.reshape(images, target_shape)
@@ -200,6 +224,8 @@ def shape_as_image_only_imgs(images, labels, dataset, dummy_dim=False):
 def get_grad_fun(num_classes):
 
   if FLAGS.feature_type == 'wavelet':
+    if FLAGS.dataset == 'chest_xray':
+        scatter_net = MnistScatterEnc(j=FLAGS.scatter_j, norm_features=FLAGS.normalize_features)
     if (FLAGS.dataset == 'mnist') or (FLAGS.dataset == 'fashion_mnist'):
       scatter_net = MnistScatterEnc(j=FLAGS.scatter_j, norm_features=FLAGS.normalize_features)
     else:
@@ -223,6 +249,25 @@ def get_grad_fun(num_classes):
   return grad_fun
 
 def main(_):
+   train_dir = 'chest_xray/train'
+   test_dir = 'chest_xray/test'
+   val_dir = 'chest_xray/val'
+    
+   train_images, train_labels = load_chest_xray_dataset(train_dir)
+   test_images, test_labels = load_chest_xray_dataset(test_dir)
+   val_images, val_labels = load_chest_xray_dataset(val_dir)
+    
+    # Combine train and val sets
+   train_images = np.concatenate([train_images, val_images])
+   train_labels = np.concatenate([train_labels, val_labels])
+    
+    # Convert to float and normalize
+   train_images = train_images.astype(np.float32) / 255.0
+   test_images = test_images.astype(np.float32) / 255.0
+    
+   num_classes = 2  # NORMAL and PNEUMONIA
+   y_train = one_hot(train_labels, num_classes)
+   y_test = one_hot(test_labels, num_classes)
 
   if FLAGS.dataset == 'cifar100':
     num_classes=100
