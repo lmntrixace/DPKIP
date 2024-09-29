@@ -72,7 +72,7 @@ def load_chest_xray_dataset(data_dir):
             img_path = os.path.join(class_dir, img_name)
             img = Image.open(img_path).convert('L')  # Convert to grayscale
             img = img.resize((224, 224))  # Resize to a standard size
-            X.append(np.array(img))
+            X.append(np.array(img)[:,:,np.newaxis])  # Add channel dimension
             y.append(class_idx)
     
     return np.array(X), np.array(y)
@@ -196,38 +196,37 @@ def private_grad(params, batch, rng, l2_norm_clip, noise_multiplier,
   return tree_unflatten(grads_treedef, normalized_noised_aggregated_clipped_grads)
 
 def shape_as_image(images, labels, dataset, dummy_dim=False):
-  if dataset == 'chest_xray':
-    target_shape = (-1, 1, 224, 224, 1) if dummy_dim else (-1, 224, 224, 1)
-    images_reshaped = jnp.reshape(images, target_shape)
-  if dataset=='mnist' or dataset=='fashion_mnist':
-    target_shape = (-1, 1, 28, 28, 1) if dummy_dim else (-1, 28, 28, 1)
-    images_reshaped = jnp.reshape(images, target_shape)
-  elif dataset=='cifar10' or dataset=='svhn_cropped' or dataset=='cifar100':
-    target_shape = (-1, 1, 32, 32, 3) if dummy_dim else (-1, 32, 32, 3)
-    images_reshaped = jnp.reshape(images, target_shape) 
-  return images_reshaped, labels
+    if dataset == 'chest_xray':
+        target_shape = (-1, 1, 224, 224, 1) if dummy_dim else (-1, 224, 224, 1)
+        images_reshaped = jnp.reshape(images, target_shape)
+    elif dataset=='mnist' or dataset=='fashion_mnist':
+        target_shape = (-1, 1, 28, 28, 1) if dummy_dim else (-1, 28, 28, 1)
+        images_reshaped = jnp.reshape(images, target_shape)
+    elif dataset=='cifar10' or dataset=='svhn_cropped' or dataset=='cifar100':
+        target_shape = (-1, 1, 32, 32, 3) if dummy_dim else (-1, 32, 32, 3)
+        images_reshaped = jnp.reshape(images, target_shape) 
+    return images_reshaped, labels
 
 def shape_as_image_only_imgs(images, labels, dataset, dummy_dim=False):
-  if dataset == 'chest_xray':
-    target_shape = (-1, 1, 224, 224, 1) if dummy_dim else (-1, 224, 224, 1)
-    images_reshaped = jnp.reshape(images, target_shape)
-  if dataset=='mnist' or dataset=='fashion_mnist':
-    target_shape = (-1, 1, 28, 28, 1) if dummy_dim else (-1, 28, 28, 1)
-    images_reshaped = jnp.reshape(images, target_shape)
-  elif dataset=='cifar10' or dataset=='svhn_cropped' or dataset=='cifar100':
-    target_shape = (-1, 1, 32, 32, 3) if dummy_dim else (-1, 32, 32, 3)
-    images_reshaped = jnp.reshape(images, target_shape) 
-  return images_reshaped
+    if dataset == 'chest_xray':
+        target_shape = (-1, 1, 224, 224, 1) if dummy_dim else (-1, 224, 224, 1)
+        images_reshaped = jnp.reshape(images, target_shape)
+    elif dataset=='mnist' or dataset=='fashion_mnist':
+        target_shape = (-1, 1, 28, 28, 1) if dummy_dim else (-1, 28, 28, 1)
+        images_reshaped = jnp.reshape(images, target_shape)
+    elif dataset=='cifar10' or dataset=='svhn_cropped' or dataset=='cifar100':
+        target_shape = (-1, 1, 32, 32, 3) if dummy_dim else (-1, 32, 32, 3)
+        images_reshaped = jnp.reshape(images, target_shape) 
+    return images_reshaped
 
 def get_grad_fun(num_classes):
-
-  if FLAGS.feature_type == 'wavelet':
-    if FLAGS.dataset == 'chest_xray':
-        scatter_net = MnistScatterEnc(j=FLAGS.scatter_j, norm_features=FLAGS.normalize_features)
-    if (FLAGS.dataset == 'mnist') or (FLAGS.dataset == 'fashion_mnist'):
-      scatter_net = MnistScatterEnc(j=FLAGS.scatter_j, norm_features=FLAGS.normalize_features)
-    else:
-      scatter_net = CifarScatterEnc(j=FLAGS.scatter_j, norm_features=FLAGS.normalize_features)
+    if FLAGS.feature_type == 'wavelet':
+        if FLAGS.dataset == 'chest_xray':
+            scatter_net = MnistScatterEnc(j=FLAGS.scatter_j, norm_features=FLAGS.normalize_features)
+        elif (FLAGS.dataset == 'mnist') or (FLAGS.dataset == 'fashion_mnist'):
+            scatter_net = MnistScatterEnc(j=FLAGS.scatter_j, norm_features=FLAGS.normalize_features)
+        else:
+            scatter_net = CifarScatterEnc(j=FLAGS.scatter_j, norm_features=FLAGS.normalize_features)
 
 
     def grad_fun(x_support, batch, y_support):
@@ -337,31 +336,19 @@ def main(_):
                                                               seed=FLAGS.seed)
   if FLAGS.rand_init:
     if FLAGS.dataset == 'mnist':
-      init_params = random.normal(key, (FLAGS.support_size, train_images.shape[1]))
-      init_params = shape_as_image_only_imgs(init_params, y_init, FLAGS.dataset)
+        init_params = random.normal(key, (FLAGS.support_size, 28, 28, 1))
+    elif FLAGS.dataset == 'chest_xray':
+        init_params = random.normal(key, (FLAGS.support_size, 224, 224, 1))
     else:
-      init_params = random.normal(key, (FLAGS.support_size, train_images.shape[1],  train_images.shape[2],  train_images.shape[3]))
+        init_params = random.normal(key, (FLAGS.support_size, train_images.shape[1], train_images.shape[2], train_images.shape[3]))
+    init_params = shape_as_image_only_imgs(init_params, y_init, FLAGS.dataset)
   opt_state = opt_init(init_params)
   itercount = itertools.count()
 
   logreg_accs = []
   print('\nStarting training...')
   params = None
-  for epoch in range(1, FLAGS.epochs + 1):
-    start_time = time.time()
-    for _ in range(num_batches):
-      if FLAGS.dpsgd:
-        gc.collect()
-        opt_state = \
-            private_update(
-                key, next(itercount), opt_state,
-                shape_as_image(*next(batches), FLAGS.dataset, dummy_dim=True), y_init)
-
-      else:
-        gc.collect()
-        opt_state = update(
-            key, next(itercount), opt_state, shape_as_image(*next(batches), FLAGS.dataset), y_init)
-
+  
     epoch_time = time.time() - start_time
     print(f'Epoch {epoch} in {epoch_time:0.2f} sec')
     # evaluate test accuracy
@@ -381,6 +368,9 @@ def main(_):
     
     if len(test_images.shape) == 2:
       test_images, test_labels  = shape_as_image(test_images, test_labels, FLAGS.dataset)
+
+    if len(test_images.shape) == 3:  # For chest X-ray dataset
+        test_images = test_images[:, :, :, np.newaxis]
     
 
     mse_loss, acc = eval_acc(params, y_init, test_images, test_labels, feature_extractor, num_classes, FLAGS.kip_loss_reg)
