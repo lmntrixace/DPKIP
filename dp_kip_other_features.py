@@ -4,7 +4,6 @@ import os
 import gc
 from absl import app
 from absl import flags
-from PIL import Image
 
 import jax
 from jax import grad
@@ -61,21 +60,6 @@ flags.DEFINE_boolean('pretrained_encoder', True, 'If False, encoder uses random 
 #flags for normalizing the features
 flags.DEFINE_boolean('normalize_features', False, '')
 
-
-def load_chest_xray_dataset(data_dir):
-    classes = ['NORMAL', 'PNEUMONIA']
-    X, y = [], []
-    
-    for class_idx, class_name in enumerate(classes):
-        class_dir = os.path.join(data_dir, class_name)
-        for img_name in os.listdir(class_dir):
-            img_path = os.path.join(class_dir, img_name)
-            img = Image.open(img_path).convert('L')  # Convert to grayscale
-            img = img.resize((224, 224))  # Resize to a standard size
-            X.append(np.array(img)[:,:,np.newaxis])  # Add channel dimension
-            y.append(class_idx)
-    
-    return np.array(X), np.array(y)
 
 def kip_loss(phi_support, y_support, phi_target, y_target, num_classes, reg=1e-6):
   k_ts = jnp.matmul(phi_target, jnp.transpose(phi_support)) / num_classes
@@ -196,98 +180,66 @@ def private_grad(params, batch, rng, l2_norm_clip, noise_multiplier,
   return tree_unflatten(grads_treedef, normalized_noised_aggregated_clipped_grads)
 
 def shape_as_image(images, labels, dataset, dummy_dim=False):
-    if dataset == 'chest_xray':
-        target_shape = (-1, 1, 224, 224, 1) if dummy_dim else (-1, 224, 224, 1)
-        images_reshaped = jnp.reshape(images, target_shape)
-    elif dataset=='mnist' or dataset=='fashion_mnist':
-        target_shape = (-1, 1, 28, 28, 1) if dummy_dim else (-1, 28, 28, 1)
-        images_reshaped = jnp.reshape(images, target_shape)
-    elif dataset=='cifar10' or dataset=='svhn_cropped' or dataset=='cifar100':
-        target_shape = (-1, 1, 32, 32, 3) if dummy_dim else (-1, 32, 32, 3)
-        images_reshaped = jnp.reshape(images, target_shape) 
-    return images_reshaped, labels
+  if dataset=='mnist' or dataset=='fashion_mnist':
+    target_shape = (-1, 1, 28, 28, 1) if dummy_dim else (-1, 28, 28, 1)
+    images_reshaped = jnp.reshape(images, target_shape)
+  elif dataset=='cifar10' or dataset=='svhn_cropped' or dataset=='cifar100':
+    target_shape = (-1, 1, 32, 32, 3) if dummy_dim else (-1, 32, 32, 3)
+    images_reshaped = jnp.reshape(images, target_shape) 
+  return images_reshaped, labels
 
 def shape_as_image_only_imgs(images, labels, dataset, dummy_dim=False):
-    if dataset == 'chest_xray':
-        target_shape = (-1, 1, 224, 224, 1) if dummy_dim else (-1, 224, 224, 1)
-        images_reshaped = jnp.reshape(images, target_shape)
-    elif dataset=='mnist' or dataset=='fashion_mnist':
-        target_shape = (-1, 1, 28, 28, 1) if dummy_dim else (-1, 28, 28, 1)
-        images_reshaped = jnp.reshape(images, target_shape)
-    elif dataset=='cifar10' or dataset=='svhn_cropped' or dataset=='cifar100':
-        target_shape = (-1, 1, 32, 32, 3) if dummy_dim else (-1, 32, 32, 3)
-        images_reshaped = jnp.reshape(images, target_shape) 
-    return images_reshaped
+  if dataset=='mnist' or dataset=='fashion_mnist':
+    target_shape = (-1, 1, 28, 28, 1) if dummy_dim else (-1, 28, 28, 1)
+    images_reshaped = jnp.reshape(images, target_shape)
+  elif dataset=='cifar10' or dataset=='svhn_cropped' or dataset=='cifar100':
+    target_shape = (-1, 1, 32, 32, 3) if dummy_dim else (-1, 32, 32, 3)
+    images_reshaped = jnp.reshape(images, target_shape) 
+  return images_reshaped
 
 def get_grad_fun(num_classes):
-    if FLAGS.feature_type == 'wavelet':
-        if FLAGS.dataset == 'chest_xray':
-            scatter_net = MnistScatterEnc(j=FLAGS.scatter_j, norm_features=FLAGS.normalize_features)
-        elif (FLAGS.dataset == 'mnist') or (FLAGS.dataset == 'fashion_mnist'):
-            scatter_net = MnistScatterEnc(j=FLAGS.scatter_j, norm_features=FLAGS.normalize_features)
-        else:
-            scatter_net = CifarScatterEnc(j=FLAGS.scatter_j, norm_features=FLAGS.normalize_features)
 
-        def grad_fun(x_support, batch, y_support):
-            return grad(forward_pass_kip_loss)(x_support, batch, y_support, scatter_net, num_classes,
-                                                 FLAGS.kip_loss_reg)
-    
-    elif FLAGS.feature_type == 'resnet':
-        print("We are using perceptual features with pretrained_encoder={} and normalize_features={}".format(
-            FLAGS.pretrained_encoder, FLAGS.normalize_features))
-        enc = ResNetEnc(FLAGS.pretrain_dataset, pretrained=FLAGS.pretrained_encoder,
-                        norm_features=FLAGS.normalize_features)
-
-        def grad_fun(x_support, batch, y_support):
-            return grad(forward_pass_kip_loss)(x_support, batch, y_support, enc, num_classes, FLAGS.kip_loss_reg)
-
+  if FLAGS.feature_type == 'wavelet':
+    if (FLAGS.dataset == 'mnist') or (FLAGS.dataset == 'fashion_mnist'):
+      scatter_net = MnistScatterEnc(j=FLAGS.scatter_j, norm_features=FLAGS.normalize_features)
     else:
-        raise NotImplementedError(f'Unrecognized feature type {FLAGS.feature_type}')
-    
-    return grad_fun
+      scatter_net = CifarScatterEnc(j=FLAGS.scatter_j, norm_features=FLAGS.normalize_features)
 
+
+    def grad_fun(x_support, batch, y_support):
+      return grad(forward_pass_kip_loss)(x_support, batch, y_support, scatter_net, num_classes,
+                                         FLAGS.kip_loss_reg)
+
+  elif FLAGS.feature_type == 'resnet':
+    print("We are using perceptual features with pretrained_encoder={} and normalize_features={}".format(FLAGS.pretrained_encoder, FLAGS.normalize_features))
+    enc = ResNetEnc(FLAGS.pretrain_dataset, pretrained=FLAGS.pretrained_encoder,
+                    norm_features=FLAGS.normalize_features)
+
+    def grad_fun(x_support, batch, y_support):
+      return grad(forward_pass_kip_loss)(x_support, batch, y_support, enc, num_classes, FLAGS.kip_loss_reg)
+
+  else:
+    raise NotImplementedError(f'Unrecognized feature type {FLAGS.feature_type}')
+  return grad_fun
 
 def main(_):
-  if FLAGS.dataset == 'chest_xray':
-    # Load the chest X-ray dataset
-    train_dir = os.path.join('chest_xray', 'train')
-    test_dir = os.path.join('chest_xray', 'test')
-    val_dir = os.path.join('chest_xray', 'val')
-    
-    train_images, train_labels = load_chest_xray_dataset(train_dir)
-    test_images, test_labels = load_chest_xray_dataset(test_dir)
-    val_images, val_labels = load_chest_xray_dataset(val_dir)
-    
-    # Combine train and val sets
-    train_images = np.concatenate([train_images, val_images])
-    train_labels = np.concatenate([train_labels, val_labels])
-    
-    # Convert to float and normalize
-    train_images = train_images.astype(np.float32) / 255.0
-    test_images = test_images.astype(np.float32) / 255.0
-    
-    num_classes = 2  # NORMAL and PNEUMONIA
-    y_train = one_hot(train_labels, num_classes)
-    test_labels = one_hot(test_labels, num_classes)
 
-    labels_train = train_labels
+  if FLAGS.dataset == 'cifar100':
+    num_classes=100
   else:
-    if FLAGS.dataset == 'cifar100':
-      num_classes=100
-    else:
-      num_classes=10
+    num_classes=10
 
-    grad_fun = get_grad_fun(num_classes)
+  grad_fun = get_grad_fun(num_classes)
 
-    if FLAGS.dataset == 'mnist':
-      train_images, train_labels, test_images, test_labels = datasets.mnist()
-      labels_train = jnp.argmax(train_labels, axis=1)
-      y_train=one_hot(labels_train, num_classes)
-    else:
-      X_TRAIN_RAW, labels_train, X_TEST_RAW, LABELS_TEST = get_tfds_dataset(FLAGS.dataset)
-      channel_means, channel_stds = get_normalization_data(X_TRAIN_RAW)
-      train_images, test_images = normalize(X_TRAIN_RAW, channel_means, channel_stds), normalize(X_TEST_RAW, channel_means, channel_stds)
-      y_train, test_labels = one_hot(labels_train, num_classes), one_hot(LABELS_TEST, num_classes) 
+  if FLAGS.dataset == 'mnist':
+    train_images, train_labels, test_images, test_labels = datasets.mnist()
+    labels_train = jnp.argmax(train_labels, axis=1)
+    y_train=one_hot(labels_train, num_classes)
+  else:
+    X_TRAIN_RAW, labels_train, X_TEST_RAW, LABELS_TEST = get_tfds_dataset(FLAGS.dataset)
+    channel_means, channel_stds = get_normalization_data(X_TRAIN_RAW)
+    train_images, test_images = normalize(X_TRAIN_RAW, channel_means, channel_stds), normalize(X_TEST_RAW, channel_means, channel_stds)
+    y_train, test_labels = one_hot(labels_train, num_classes), one_hot(LABELS_TEST, num_classes) 
 
   print("train_images.shape=", train_images.shape)
 
@@ -333,126 +285,157 @@ def main(_):
                      dp_params['sigma'], FLAGS.batch_size, y_support,
                      grad_fun), opt_state_)
 
+  """Initialize distilled images as random original ones"""
   _, labels_init, init_params, y_init = class_balanced_sample(FLAGS.support_size, labels_train,
                                                               train_images, y_train,
                                                               seed=FLAGS.seed)
   if FLAGS.rand_init:
     if FLAGS.dataset == 'mnist':
-        init_params = random.normal(key, (FLAGS.support_size, 28, 28, 1))
-    elif FLAGS.dataset == 'chest_xray':
-        init_params = random.normal(key, (FLAGS.support_size, 224, 224, 1))
+      init_params = random.normal(key, (FLAGS.support_size, train_images.shape[1]))
+      init_params = shape_as_image_only_imgs(init_params, y_init, FLAGS.dataset)
     else:
-        init_params = random.normal(key, (FLAGS.support_size, train_images.shape[1], train_images.shape[2], train_images.shape[3]))
-    init_params = shape_as_image_only_imgs(init_params, y_init, FLAGS.dataset)
+      init_params = random.normal(key, (FLAGS.support_size, train_images.shape[1],  train_images.shape[2],  train_images.shape[3]))
   opt_state = opt_init(init_params)
   itercount = itertools.count()
 
-  logreg_accs = []
-  print('\nStarting training...')
-  params = None
-  for epoch in range(FLAGS.epochs):
-   start_time = time.time()
+logreg_accs = []
+print('\nStarting training...')
+params = None
+for epoch in range(1, FLAGS.epochs + 1):
+    start_time = time.time()
+    for _ in range(num_batches):
+        if FLAGS.dpsgd:
+            gc.collect()
+            opt_state = private_update(
+                key, next(itercount), opt_state,
+                shape_as_image(*next(batches), FLAGS.dataset, dummy_dim=True), y_init
+            )
+        else:
+            gc.collect()
+            opt_state = update(
+                key, next(itercount), opt_state, shape_as_image(*next(batches), FLAGS.dataset), y_init
+            )
 
-   epoch_time = time.time() - start_time
-   print(f'Epoch {epoch} in {epoch_time:0.2f} sec')
-    # evaluate test accuracy
-   params = get_params(opt_state)
-   print("params.shape=", params.shape)
-   if FLAGS.feature_type == 'wavelet':
-     if (FLAGS.dataset == 'mnist') or (FLAGS.dataset == 'fashion_mnist'):
-         feature_extractor = MnistScatterEnc(j=FLAGS.scatter_j, norm_features=FLAGS.normalize_features)
-     else:
-         feature_extractor = CifarScatterEnc(j=FLAGS.scatter_j, norm_features=FLAGS.normalize_features)
-   elif FLAGS.feature_type == 'resnet':
-     print("We are using perceptual features with pretrained_encoder={} and normalize_features={}".format(
-         FLAGS.pretrained_encoder, FLAGS.normalize_features))
-     feature_extractor = ResNetEnc(FLAGS.pretrain_dataset, pretrained=FLAGS.pretrained_encoder,
-                                   norm_features=FLAGS.normalize_features)
+    epoch_time = time.time() - start_time
+    print(f'Epoch {epoch} in {epoch_time:0.2f} sec')
 
-   else:
-     raise NotImplementedError(f'Unrecognized feature type {FLAGS.feature_type}')
+    # Evaluate test accuracy
+    params = get_params(opt_state)
+    print("params.shape=", params.shape)
 
-   if len(test_images.shape) == 2: 
-     test_images, test_labels  = shape_as_image(test_images, test_labels, FLAGS.dataset)
+    if FLAGS.feature_type == 'wavelet':
+        if (FLAGS.dataset == 'mnist') or (FLAGS.dataset == 'fashion_mnist'):
+            feature_extractor = MnistScatterEnc(j=FLAGS.scatter_j, norm_features=FLAGS.normalize_features)
+        else:
+            feature_extractor = CifarScatterEnc(j=FLAGS.scatter_j, norm_features=FLAGS.normalize_features)
+    elif FLAGS.feature_type == 'resnet':
+        print("We are using perceptual features with pretrained_encoder={} and normalize_features={}".format(
+            FLAGS.pretrained_encoder, FLAGS.normalize_features
+        ))
+        feature_extractor = ResNetEnc(
+            FLAGS.pretrain_dataset, pretrained=FLAGS.pretrained_encoder,
+            norm_features=FLAGS.normalize_features
+        )
+    else:
+        raise NotImplementedError(f'Unrecognized feature type {FLAGS.feature_type}')
 
-   if len(test_images.shape) == 3:  # For chest X-ray dataset
-         test_images = test_images[:, :, :, np.newaxis]
-    
+    if len(test_images.shape) == 2:
+        test_images, test_labels = shape_as_image(test_images, test_labels, FLAGS.dataset)
 
-   mse_loss, acc = eval_acc(params, y_init, test_images, test_labels, feature_extractor, num_classes, FLAGS.kip_loss_reg)
-   print("test loss:", mse_loss)
-   print("test acc: ", acc)
-    
-  cur_path = os.path.dirname(os.path.abspath(__file__))
-  if FLAGS.feature_type == 'wavelet':
+    mse_loss, acc = eval_acc(
+        params, y_init, test_images, test_labels, feature_extractor, num_classes, FLAGS.kip_loss_reg
+    )
+    print("test loss:", mse_loss)
+    print("test acc: ", acc)
+
+cur_path = os.path.dirname(os.path.abspath(__file__))
+if FLAGS.feature_type == 'wavelet':
     save_acc_path = os.path.join(cur_path, 'accuracy_scatter')
     save_images_path = os.path.join(cur_path, 'images_scatter')
     if FLAGS.dpsgd:
         save_acc_path = os.path.join(cur_path, 'accuracy_scatter_dp')
         save_images_path = os.path.join(cur_path, 'images_scatter_dp')
-  else:
-      save_acc_path = os.path.join(cur_path, 'accuracy_perceptual')
-      save_images_path = os.path.join(cur_path, 'images_perceptual')
-      if FLAGS.dpsgd:
-          save_acc_path = os.path.join(cur_path, 'accuracy_perceptual_dp')
-          save_images_path = os.path.join(cur_path, 'images_perceptual_dp')
+else:
+    save_acc_path = os.path.join(cur_path, 'accuracy_perceptual')
+    save_images_path = os.path.join(cur_path, 'images_perceptual')
+    if FLAGS.dpsgd:
+        save_acc_path = os.path.join(cur_path, 'accuracy_perceptual_dp')
+        save_images_path = os.path.join(cur_path, 'images_perceptual_dp')
 
-  if FLAGS.dpsgd:
-      if FLAGS.feature_type == 'wavelet':
-          filename_acc = "acc_{}_{}_supp_size={}_eps={}_delta={}_lr={}_c={}_bs={}_epochs={}_reg={}_seed={}_rand_init={}_scatter_j={}_norm_feat={}.txt".format(
-              FLAGS.feature_type, FLAGS.dataset, FLAGS.support_size, FLAGS.epsilon, FLAGS.delta, FLAGS.learning_rate, FLAGS.l2_norm_clip, 
-              FLAGS.batch_size, FLAGS.epochs, FLAGS.kip_loss_reg, FLAGS.seed, FLAGS.rand_init, FLAGS.scatter_j, FLAGS.normalize_features)
-      else:
-          filename_acc = "acc_{}_{}_supp_size={}_eps={}_delta={}_lr={}_c={}_bs={}_epochs={}_reg={}_seed={}_pretrained_enc={}_norm_feat={}_rand_init={}.txt".format(
-              FLAGS.feature_type, FLAGS.dataset, FLAGS.support_size, FLAGS.epsilon, FLAGS.delta, FLAGS.learning_rate, FLAGS.l2_norm_clip, 
-              FLAGS.batch_size, FLAGS.epochs, FLAGS.kip_loss_reg, FLAGS.seed, FLAGS.pretrained_encoder, FLAGS.normalize_features, FLAGS.rand_init)
-  else:
-      if FLAGS.feature_type == 'wavelet':
-          filename_acc = "acc_{}_{}_supp_size={}_lr={}_bs={}_epochs={}_reg={}_seed={}_rand_init={}_scatter_j={}_norm_feat={}.txt".format(
-              FLAGS.feature_type, FLAGS.dataset, FLAGS.support_size, FLAGS.learning_rate, FLAGS.batch_size, FLAGS.epochs, FLAGS.kip_loss_reg, 
-              FLAGS.seed, FLAGS.rand_init, FLAGS.scatter_j, FLAGS.normalize_features)
-      else:
-          filename_acc = "acc_{}_{}_supp_size={}_lr={}_bs={}_epochs={}_reg={}_seed={}_pretrained_enc={}_norm_feat={}.txt".format(
-              FLAGS.feature_type, FLAGS.dataset, FLAGS.support_size, FLAGS.learning_rate, FLAGS.batch_size, FLAGS.epochs, FLAGS.kip_loss_reg, 
-              FLAGS.seed, FLAGS.pretrained_encoder, FLAGS.normalize_features)
+if FLAGS.dpsgd:
+    if FLAGS.feature_type == 'wavelet':
+        filename_acc = "acc_{}_{}_supp_size={}_eps={}_delta={}_lr={}_c={}_bs={}_epochs={}_reg={}_seed={}_rand_init={}_scatter_j={}_norm_feat={}_rand_init={}.txt".format(
+            FLAGS.feature_type, FLAGS.dataset, FLAGS.support_size, FLAGS.epsilon, FLAGS.delta,
+            FLAGS.learning_rate, FLAGS.l2_norm_clip, FLAGS.batch_size, FLAGS.epochs, 
+            FLAGS.kip_loss_reg, FLAGS.seed, FLAGS.rand_init, FLAGS.scatter_j, FLAGS.normalize_features, 
+            FLAGS.rand_init
+        )
+    else:
+        filename_acc = "acc_{}_{}_supp_size={}_eps={}_delta={}_lr={}_c={}_bs={}_epochs={}_reg={}_seed={}_pretrained_enc={}_norm_feat={}_rand_init={}.txt".format(
+            FLAGS.feature_type, FLAGS.dataset, FLAGS.support_size, FLAGS.epsilon, FLAGS.delta,
+            FLAGS.learning_rate, FLAGS.l2_norm_clip, FLAGS.batch_size, FLAGS.epochs, 
+            FLAGS.kip_loss_reg, FLAGS.seed, FLAGS.pretrained_encoder, FLAGS.normalize_features, 
+            FLAGS.rand_init
+        )
+else:
+    if FLAGS.feature_type == 'wavelet':
+        filename_acc = "acc_{}_{}_supp_size={}_lr={}_bs={}_epochs={}_reg={}_seed={}_rand_init={}_scatter_j={}_norm_feat={}.txt".format(
+            FLAGS.feature_type, FLAGS.dataset, FLAGS.support_size, FLAGS.learning_rate, 
+            FLAGS.batch_size, FLAGS.epochs, FLAGS.kip_loss_reg, FLAGS.seed, 
+            FLAGS.rand_init, FLAGS.scatter_j, FLAGS.normalize_features
+        )
+    else:
+        filename_acc = "acc_{}_{}_supp_size={}_lr={}_bs={}_epochs={}_reg={}_seed={}_pretrained_enc={}_norm_feat={}.txt".format(
+            FLAGS.feature_type, FLAGS.dataset, FLAGS.support_size, FLAGS.learning_rate, 
+            FLAGS.batch_size, FLAGS.epochs, FLAGS.kip_loss_reg, FLAGS.seed, 
+            FLAGS.pretrained_encoder, FLAGS.normalize_features
+        )
 
-  if FLAGS.dpsgd:
-      if FLAGS.feature_type == 'wavelet':
-          filename_images = "images_{}_{}_supp_size={}_eps={}_delta={}_lr={}_c={}_bs={}_epochs={}_reg={}_seed={}_rand_init={}_scatter_j={}_norm_feat={}.npz".format(
-              FLAGS.feature_type, FLAGS.dataset, FLAGS.support_size, FLAGS.epsilon, FLAGS.delta, FLAGS.learning_rate, FLAGS.l2_norm_clip, 
-              FLAGS.batch_size, FLAGS.epochs, FLAGS.kip_loss_reg, FLAGS.seed, FLAGS.rand_init, FLAGS.scatter_j, FLAGS.normalize_features)
-      else:
-          filename_images = "images_{}_{}_supp_size={}_eps={}_delta={}_lr={}_c={}_bs={}_epochs={}_reg={}_seed={}_pretrained_enc={}_norm_feat={}_rand_init={}.npz".format(
-              FLAGS.feature_type, FLAGS.dataset, FLAGS.support_size, FLAGS.epsilon, FLAGS.delta, FLAGS.learning_rate, FLAGS.l2_norm_clip, 
-              FLAGS.batch_size, FLAGS.epochs, FLAGS.kip_loss_reg, FLAGS.seed, FLAGS.pretrained_encoder, FLAGS.normalize_features, FLAGS.rand_init)
-  else:
-      if FLAGS.feature_type == 'wavelet':
-          filename_images = "images_{}_{}_supp_size={}_lr={}_bs={}_epochs={}_reg={}_seed={}_rand_init={}_scatter_j={}_norm_feat={}.npz".format(
-              FLAGS.feature_type, FLAGS.dataset, FLAGS.support_size, FLAGS.learning_rate, FLAGS.batch_size, FLAGS.epochs, FLAGS.kip_loss_reg, 
-              FLAGS.seed, FLAGS.rand_init, FLAGS.scatter_j, FLAGS.normalize_features)
-      else:
-          filename_images = "images_{}_{}_supp_size={}_lr={}_bs={}_epochs={}_reg={}_seed={}_pretrained_enc={}_norm_feat={}.npz".format(
-              FLAGS.feature_type, FLAGS.dataset, FLAGS.support_size, FLAGS.learning_rate, FLAGS.batch_size, FLAGS.epochs, FLAGS.kip_loss_reg, 
-              FLAGS.seed, FLAGS.pretrained_encoder, FLAGS.normalize_features)
+if FLAGS.dpsgd:
+    if FLAGS.feature_type == 'wavelet':
+        filename_images = "images_{}_{}_supp_size={}_eps={}_delta={}_lr={}_c={}_bs={}_epochs={}_reg={}_seed={}_rand_init={}_scatter_j={}_norm_feat={}_rand_init={}.npz".format(
+            FLAGS.feature_type, FLAGS.dataset, FLAGS.support_size, FLAGS.epsilon, FLAGS.delta,
+            FLAGS.learning_rate, FLAGS.l2_norm_clip, FLAGS.batch_size, FLAGS.epochs, 
+            FLAGS.kip_loss_reg, FLAGS.seed, FLAGS.rand_init, FLAGS.scatter_j, 
+            FLAGS.normalize_features, FLAGS.rand_init
+        )
+    else:
+        filename_images = "images_{}_{}_supp_size={}_eps={}_delta={}_lr={}_c={}_bs={}_epochs={}_reg={}_seed={}_pretrained_enc={}_norm_feat={}_rand_init={}.npz".format(
+            FLAGS.feature_type, FLAGS.dataset, FLAGS.support_size, FLAGS.epsilon, FLAGS.delta,
+            FLAGS.learning_rate, FLAGS.l2_norm_clip, FLAGS.batch_size, FLAGS.epochs, 
+            FLAGS.kip_loss_reg, FLAGS.seed, FLAGS.pretrained_encoder, FLAGS.normalize_features, 
+            FLAGS.rand_init
+        )
+else:
+    if FLAGS.feature_type == 'wavelet':
+        filename_images = "images_{}_{}_supp_size={}_lr={}_bs={}_epochs={}_reg={}_seed={}_rand_init={}_scatter_j={}_norm_feat={}.npz".format(
+            FLAGS.feature_type, FLAGS.dataset, FLAGS.support_size, FLAGS.learning_rate, 
+            FLAGS.batch_size, FLAGS.epochs, FLAGS.kip_loss_reg, FLAGS.seed, 
+            FLAGS.rand_init, FLAGS.scatter_j, FLAGS.normalize_features
+        )
+    else:
+        filename_images = "images_{}_{}_supp_size={}_lr={}_bs={}_epochs={}_reg={}_seed={}_pretrained_enc={}_norm_feat={}.npz".format(
+            FLAGS.feature_type, FLAGS.dataset, FLAGS.support_size, FLAGS.learning_rate, 
+            FLAGS.batch_size, FLAGS.epochs, FLAGS.kip_loss_reg, FLAGS.seed, 
+            FLAGS.pretrained_encoder, FLAGS.normalize_features
+        )
 
-
-  if not os.path.exists(save_acc_path):
+if not os.path.exists(save_acc_path):
     os.makedirs(save_acc_path)
-  with open(os.path.join(save_acc_path, filename_acc), 'w') as f:
+with open(os.path.join(save_acc_path, filename_acc), 'w') as f:
     f.writelines(str(acc))
 
+params_final_x, params_init_raw_y = shape_as_image(params, labels_init, FLAGS.dataset)
+print("params.shape at the end of traininge=", params_final_x.shape)
+print("params_init_raw_y=", params_init_raw_y)
 
-  params_final_x, params_init_raw_y=shape_as_image(params, labels_init, FLAGS.dataset)
-  print("params.shape at the end of traininge=", params_final_x.shape)
-  print("params_init_raw_y=", params_init_raw_y)
-
-  if not os.path.exists(save_images_path):
+if not os.path.exists(save_images_path):
     os.makedirs(save_images_path)
-  np.savez(os.path.join(save_images_path, filename_images), data=params_final_x, labels=params_init_raw_y)
-
+np.savez(os.path.join(save_images_path, filename_images), data=params_final_x, labels=params_init_raw_y)
 
 if __name__ == '__main__':
-  app.run(main)
+    app.run(main)
+
 
 
 
