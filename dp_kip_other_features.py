@@ -220,7 +220,7 @@ def shape_as_image_only_imgs(images, labels, dataset, dummy_dim=False):
     return images_reshaped
 
 def get_grad_fun(num_classes):
-    if FLAGS.feature_type == 'wavelet':
+  if FLAGS.feature_type == 'wavelet':
         if FLAGS.dataset == 'chest_xray':
             scatter_net = MnistScatterEnc(j=FLAGS.scatter_j, norm_features=FLAGS.normalize_features)
         elif (FLAGS.dataset == 'mnist') or (FLAGS.dataset == 'fashion_mnist'):
