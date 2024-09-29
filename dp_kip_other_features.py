@@ -220,7 +220,7 @@ def shape_as_image_only_imgs(images, labels, dataset, dummy_dim=False):
     return images_reshaped
 
 def get_grad_fun(num_classes):
-  if FLAGS.feature_type == 'wavelet':
+    if FLAGS.feature_type == 'wavelet':
         if FLAGS.dataset == 'chest_xray':
             scatter_net = MnistScatterEnc(j=FLAGS.scatter_j, norm_features=FLAGS.normalize_features)
         elif (FLAGS.dataset == 'mnist') or (FLAGS.dataset == 'fashion_mnist'):
@@ -228,22 +228,24 @@ def get_grad_fun(num_classes):
         else:
             scatter_net = CifarScatterEnc(j=FLAGS.scatter_j, norm_features=FLAGS.normalize_features)
 
+        def grad_fun(x_support, batch, y_support):
+            return grad(forward_pass_kip_loss)(x_support, batch, y_support, scatter_net, num_classes,
+                                                 FLAGS.kip_loss_reg)
+    
+    elif FLAGS.feature_type == 'resnet':
+        print("We are using perceptual features with pretrained_encoder={} and normalize_features={}".format(
+            FLAGS.pretrained_encoder, FLAGS.normalize_features))
+        enc = ResNetEnc(FLAGS.pretrain_dataset, pretrained=FLAGS.pretrained_encoder,
+                        norm_features=FLAGS.normalize_features)
 
-    def grad_fun(x_support, batch, y_support):
-      return grad(forward_pass_kip_loss)(x_support, batch, y_support, scatter_net, num_classes,
-                                         FLAGS.kip_loss_reg)
+        def grad_fun(x_support, batch, y_support):
+            return grad(forward_pass_kip_loss)(x_support, batch, y_support, enc, num_classes, FLAGS.kip_loss_reg)
 
-  elif FLAGS.feature_type == 'resnet':
-    print("We are using perceptual features with pretrained_encoder={} and normalize_features={}".format(FLAGS.pretrained_encoder, FLAGS.normalize_features))
-    enc = ResNetEnc(FLAGS.pretrain_dataset, pretrained=FLAGS.pretrained_encoder,
-                    norm_features=FLAGS.normalize_features)
+    else:
+        raise NotImplementedError(f'Unrecognized feature type {FLAGS.feature_type}')
+    
+    return grad_fun
 
-    def grad_fun(x_support, batch, y_support):
-      return grad(forward_pass_kip_loss)(x_support, batch, y_support, enc, num_classes, FLAGS.kip_loss_reg)
-
-  else:
-    raise NotImplementedError(f'Unrecognized feature type {FLAGS.feature_type}')
-  return grad_fun
 
 def main(_):
   if FLAGS.dataset == 'chest_xray':
@@ -349,33 +351,33 @@ def main(_):
   print('\nStarting training...')
   params = None
   
-    epoch_time = time.time() - start_time
-    print(f'Epoch {epoch} in {epoch_time:0.2f} sec')
+  epoch_time = time.time() - start_time
+  print(f'Epoch {epoch} in {epoch_time:0.2f} sec')
     # evaluate test accuracy
-    params = get_params(opt_state)
-    print("params.shape=", params.shape)
-    if FLAGS.feature_type == 'wavelet':
-      if (FLAGS.dataset == 'mnist') or (FLAGS.dataset == 'fashion_mnist'):
-        feature_extractor = MnistScatterEnc(j=FLAGS.scatter_j, norm_features=FLAGS.normalize_features)
-      else:
-        feature_extractor = CifarScatterEnc(j=FLAGS.scatter_j, norm_features=FLAGS.normalize_features)
-    elif FLAGS.feature_type == 'resnet':
-      print("We are using perceptual features with pretrained_encoder={} and normalize_features={}".format(FLAGS.pretrained_encoder, FLAGS.normalize_features))
-      feature_extractor = ResNetEnc(FLAGS.pretrain_dataset, pretrained=FLAGS.pretrained_encoder,
-                    norm_features=FLAGS.normalize_features)
+  params = get_params(opt_state)
+  print("params.shape=", params.shape)
+  if FLAGS.feature_type == 'wavelet':
+    if (FLAGS.dataset == 'mnist') or (FLAGS.dataset == 'fashion_mnist'):
+    feature_extractor = MnistScatterEnc(j=FLAGS.scatter_j, norm_features=FLAGS.normalize_features)
     else:
-      raise NotImplementedError(f'Unrecognized feature type {FLAGS.feature_type}')
-    
-    if len(test_images.shape) == 2:
-      test_images, test_labels  = shape_as_image(test_images, test_labels, FLAGS.dataset)
+    feature_extractor = CifarScatterEnc(j=FLAGS.scatter_j, norm_features=FLAGS.normalize_features)
+  elif FLAGS.feature_type == 'resnet':
+    print("We are using perceptual features with pretrained_encoder={} and normalize_features={}".format(FLAGS.pretrained_encoder, FLAGS.normalize_features))
+    feature_extractor = ResNetEnc(FLAGS.pretrain_dataset, pretrained=FLAGS.pretrained_encoder,
+                norm_features=FLAGS.normalize_features)
+  else:
+    raise NotImplementedError(f'Unrecognized feature type {FLAGS.feature_type}')
 
-    if len(test_images.shape) == 3:  # For chest X-ray dataset
+  if len(test_images.shape) == 2:
+    test_images, test_labels  = shape_as_image(test_images, test_labels, FLAGS.dataset)
+
+  if len(test_images.shape) == 3:  # For chest X-ray dataset
         test_images = test_images[:, :, :, np.newaxis]
     
 
-    mse_loss, acc = eval_acc(params, y_init, test_images, test_labels, feature_extractor, num_classes, FLAGS.kip_loss_reg)
-    print("test loss:", mse_loss)
-    print("test acc: ", acc)
+  mse_loss, acc = eval_acc(params, y_init, test_images, test_labels, feature_extractor, num_classes, FLAGS.kip_loss_reg)
+  print("test loss:", mse_loss)
+  print("test acc: ", acc)
     
   cur_path = os.path.dirname(os.path.abspath(__file__))
   if FLAGS.feature_type == 'wavelet':
