@@ -358,13 +358,15 @@ def main(_):
   print("params.shape=", params.shape)
   if FLAGS.feature_type == 'wavelet':
     if (FLAGS.dataset == 'mnist') or (FLAGS.dataset == 'fashion_mnist'):
-    feature_extractor = MnistScatterEnc(j=FLAGS.scatter_j, norm_features=FLAGS.normalize_features)
+        feature_extractor = MnistScatterEnc(j=FLAGS.scatter_j, norm_features=FLAGS.normalize_features)
     else:
-    feature_extractor = CifarScatterEnc(j=FLAGS.scatter_j, norm_features=FLAGS.normalize_features)
+        feature_extractor = CifarScatterEnc(j=FLAGS.scatter_j, norm_features=FLAGS.normalize_features)
   elif FLAGS.feature_type == 'resnet':
-    print("We are using perceptual features with pretrained_encoder={} and normalize_features={}".format(FLAGS.pretrained_encoder, FLAGS.normalize_features))
+    print("We are using perceptual features with pretrained_encoder={} and normalize_features={}".format(
+        FLAGS.pretrained_encoder, FLAGS.normalize_features))
     feature_extractor = ResNetEnc(FLAGS.pretrain_dataset, pretrained=FLAGS.pretrained_encoder,
-                norm_features=FLAGS.normalize_features)
+                                   norm_features=FLAGS.normalize_features)
+
   else:
     raise NotImplementedError(f'Unrecognized feature type {FLAGS.feature_type}')
 
