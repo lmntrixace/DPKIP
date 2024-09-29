@@ -350,7 +350,8 @@ def main(_):
   logreg_accs = []
   print('\nStarting training...')
   params = None
-  
+  start_time = time.time()
+
   epoch_time = time.time() - start_time
   print(f'Epoch {epoch} in {epoch_time:0.2f} sec')
     # evaluate test accuracy
